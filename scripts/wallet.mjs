@@ -66,7 +66,7 @@ async function getClient() {
     metadata: {
       name: "ShioriX",
       description: "AI Agent Wallet Connection",
-      url: "https://x.com/ShiorixBot",
+      url: "https://shiorix.hewig.dev",
       icons: ["https://avatars.githubusercontent.com/u/258157775"],
     },
     storageOptions: {
