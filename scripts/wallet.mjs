@@ -11,7 +11,7 @@
  *   sessions List active sessions
  */
 
-import SignClient from "@walletconnect/sign-client";
+import { SignClient } from "@walletconnect/sign-client";
 import QRCode from "qrcode";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
@@ -57,13 +57,20 @@ async function getClient() {
     process.exit(1);
   }
 
+  // Use fixed storage path so sessions persist between runs
+  const dbPath = join(SESSIONS_DIR, "wc-store");
+  mkdirSync(SESSIONS_DIR, { recursive: true });
+
   const client = await SignClient.init({
     projectId,
     metadata: {
       name: "AgentWallet",
       description: "AI Agent Wallet Connection",
-      url: "https://github.com/shiorixbot/agent-wallet",
+      url: "https://github.com/shiorixbot/wallet-connect-skill",
       icons: ["https://avatars.githubusercontent.com/u/258157775"],
+    },
+    storageOptions: {
+      database: dbPath,
     },
   });
 
