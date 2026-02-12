@@ -64,9 +64,9 @@ async function getClient() {
   const client = await SignClient.init({
     projectId,
     metadata: {
-      name: "AgentWallet",
+      name: "ShioriX",
       description: "AI Agent Wallet Connection",
-      url: "https://github.com/shiorixbot/wallet-connect-skill",
+      url: "https://x.com/ShiorixBot",
       icons: ["https://avatars.githubusercontent.com/u/258157775"],
     },
     storageOptions: {
