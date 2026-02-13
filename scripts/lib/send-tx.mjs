@@ -12,6 +12,12 @@ import {
   VersionedTransaction,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+import {
+  getAssociatedTokenAddressSync,
+  createTransferInstruction,
+  createAssociatedTokenAccountInstruction,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 
 // Solana RPC endpoints
 const SOLANA_RPC = {
@@ -35,6 +41,16 @@ const TOKEN_ADDRESSES = {
 
 const TOKEN_DECIMALS = { USDC: 6, USDT: 6 };
 
+// SPL token mint addresses on Solana mainnet
+const SPL_MINTS = {
+  USDC: {
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  },
+  USDT: {
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  },
+};
+
 // --- Solana send ---
 
 async function sendSolana(client, args, sessionData, chain) {
@@ -50,24 +66,61 @@ async function sendSolana(client, args, sessionData, chain) {
   const connection = new Connection(rpcUrl, "confirmed");
   const fromPubkey = new PublicKey(fromAddr);
   const toPubkey = new PublicKey(args.to);
-  const lamports = Math.round(parseFloat(args.amount || "0") * LAMPORTS_PER_SOL);
 
-  // Build transfer instruction
-  const instruction = SystemProgram.transfer({ fromPubkey, toPubkey, lamports });
+  const instructions = [];
+  let tokenLabel = "SOL";
+
+  if (args.token && args.token !== "SOL") {
+    // SPL token transfer
+    const mintAddr = SPL_MINTS[args.token]?.[chain];
+    if (!mintAddr) {
+      console.error(
+        JSON.stringify({ error: `SPL token ${args.token} not supported on ${chain}` })
+      );
+      process.exit(1);
+    }
+
+    const mintPubkey = new PublicKey(mintAddr);
+    const decimals = TOKEN_DECIMALS[args.token] || 6;
+    const amount = BigInt(Math.round(parseFloat(args.amount) * 10 ** decimals));
+
+    const fromAta = getAssociatedTokenAddressSync(mintPubkey, fromPubkey);
+    const toAta = getAssociatedTokenAddressSync(mintPubkey, toPubkey);
+
+    // Check if recipient ATA exists, create if not
+    const toAtaInfo = await connection.getAccountInfo(toAta);
+    if (!toAtaInfo) {
+      instructions.push(
+        createAssociatedTokenAccountInstruction(
+          fromPubkey,  // payer
+          toAta,       // ata
+          toPubkey,    // owner
+          mintPubkey   // mint
+        )
+      );
+    }
+
+    instructions.push(
+      createTransferInstruction(fromAta, toAta, fromPubkey, amount)
+    );
+    tokenLabel = args.token;
+  } else {
+    // Native SOL transfer
+    const lamports = Math.round(parseFloat(args.amount || "0") * LAMPORTS_PER_SOL);
+    instructions.push(SystemProgram.transfer({ fromPubkey, toPubkey, lamports }));
+  }
 
   // Fetch recent blockhash
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
   // Build as VersionedTransaction (v0) — required by Gem Wallet
   const messageV0 = new TransactionMessage({
     payerKey: fromPubkey,
     recentBlockhash: blockhash,
-    instructions: [instruction],
+    instructions,
   }).compileToV0Message();
 
   const vtx = new VersionedTransaction(messageV0);
-
-  // Serialize for WC (base64)
   const serialized = Buffer.from(vtx.serialize()).toString("base64");
 
   // Request wallet to sign AND send (wallet broadcasts)
@@ -80,7 +133,6 @@ async function sendSolana(client, args, sessionData, chain) {
     },
   });
 
-  // Wallet returns the tx signature/hash
   const txid = result.signature || result;
 
   console.log(
@@ -91,7 +143,7 @@ async function sendSolana(client, args, sessionData, chain) {
       from: fromAddr,
       to: args.to,
       amount: args.amount,
-      token: "SOL",
+      token: tokenLabel,
       explorer: `https://solscan.io/tx/${txid}`,
     })
   );

@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "@walletconnect/sign-client": "^2.17.0",
     "@walletconnect/utils": "^2.17.0",
     "bs58": "^6.0.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "viem": "^2.45.3"
   }
 }
