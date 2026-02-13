@@ -1,8 +1,15 @@
 /**
- * Sign command — sign an arbitrary message.
+ * Sign command — sign an arbitrary message (EVM or Solana).
  */
 
 import { getClient, loadSessions } from "./client.mjs";
+import {
+  requireSession,
+  findAccount,
+  parseAccount,
+  encodeEvmMessage,
+  encodeSolMessage,
+} from "./helpers.mjs";
 
 export async function cmdSign(args) {
   if (!args.topic || !args.message) {
@@ -11,43 +18,48 @@ export async function cmdSign(args) {
   }
 
   const client = await getClient();
-  const sessions = loadSessions();
-  const sessionData = sessions[args.topic];
-  if (!sessionData) {
-    console.error(JSON.stringify({ error: "Session not found" }));
+  const sessionData = requireSession(loadSessions(), args.topic);
+
+  // --chain flag forces a specific chain (e.g. "solana" or "eip155")
+  const chainHint = args.chain;
+
+  // Determine which chain to sign on
+  const solAccount = findAccount(sessionData.accounts, chainHint?.startsWith("solana") ? chainHint : null)
+    || (!chainHint ? findAccount(sessionData.accounts, "solana") : null);
+  const evmAccount = findAccount(sessionData.accounts, chainHint?.startsWith("eip155") ? chainHint : null)
+    || (!chainHint ? findAccount(sessionData.accounts, "eip155") : null);
+
+  const useSolana = chainHint?.startsWith("solana") || (!chainHint && !evmAccount && solAccount);
+  const account = useSolana ? solAccount : evmAccount;
+
+  if (!account) {
+    console.error(JSON.stringify({ error: "No supported account found", chainHint }));
     process.exit(1);
   }
 
-  const evmAccount = sessionData.accounts.find((a) => a.startsWith("eip155:"));
-  const solAccount = sessionData.accounts.find((a) => a.startsWith("solana:"));
-
+  const { chainId, address } = parseAccount(account);
   let result;
-  if (evmAccount) {
-    const [ns, chainId, address] = evmAccount.split(":");
-    const hexMsg = "0x" + Buffer.from(args.message, "utf8").toString("hex");
+
+  if (useSolana) {
     const signature = await client.request({
       topic: args.topic,
-      chainId: `${ns}:${chainId}`,
-      request: {
-        method: "personal_sign",
-        params: [hexMsg, address],
-      },
-    });
-    result = { status: "signed", address, signature, chain: `${ns}:${chainId}` };
-  } else if (solAccount) {
-    const [ns, chainId, address] = solAccount.split(":");
-    const encoded = Buffer.from(args.message, "utf8").toString("base64");
-    const signature = await client.request({
-      topic: args.topic,
-      chainId: `${ns}:${chainId}`,
+      chainId,
       request: {
         method: "solana_signMessage",
-        params: { message: encoded, pubkey: address },
+        params: { message: encodeSolMessage(args.message), pubkey: address },
       },
     });
-    result = { status: "signed", address, signature, chain: `${ns}:${chainId}` };
+    result = { status: "signed", address, signature, chain: chainId };
   } else {
-    result = { status: "error", error: "No supported account found" };
+    const signature = await client.request({
+      topic: args.topic,
+      chainId,
+      request: {
+        method: "personal_sign",
+        params: [encodeEvmMessage(args.message), address],
+      },
+    });
+    result = { status: "signed", address, signature, chain: chainId };
   }
 
   console.log(JSON.stringify(result, null, 2));

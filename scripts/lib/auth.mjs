@@ -4,6 +4,13 @@
 
 import { randomBytes } from "crypto";
 import { getClient, loadSessions, saveSession } from "./client.mjs";
+import {
+  requireSession,
+  requireAccount,
+  parseAccount,
+  redactAddress,
+  encodeEvmMessage,
+} from "./helpers.mjs";
 
 export async function cmdAuth(args) {
   if (!args.topic) {
@@ -12,43 +19,31 @@ export async function cmdAuth(args) {
   }
 
   const client = await getClient();
-  const sessions = loadSessions();
-  const sessionData = sessions[args.topic];
-  if (!sessionData) {
-    console.error(JSON.stringify({ error: "Session not found" }));
-    process.exit(1);
-  }
+  const sessionData = requireSession(loadSessions(), args.topic);
+  const evmAccountStr = requireAccount(sessionData, "eip155", "EVM");
+  const { chainId, address } = parseAccount(evmAccountStr);
 
-  // Find first EVM account
-  const evmAccount = sessionData.accounts.find((a) => a.startsWith("eip155:"));
-  if (!evmAccount) {
-    console.error(JSON.stringify({ error: "No EVM account in session" }));
-    process.exit(1);
-  }
-
-  const [namespace, chainId, address] = evmAccount.split(":");
   const nonce = randomBytes(16).toString("hex");
   const timestamp = new Date().toISOString();
+  const display = redactAddress(address);
 
   const message = [
     "AgentWallet Authentication",
     "",
     `I authorize this AI agent to request transactions on my behalf.`,
     "",
-    `Address: ${address}`,
+    `Address: ${display}`,
     `Nonce: ${nonce}`,
     `Timestamp: ${timestamp}`,
   ].join("\n");
 
-  const hexMessage = "0x" + Buffer.from(message, "utf8").toString("hex");
-
   try {
     const signature = await client.request({
       topic: args.topic,
-      chainId: `${namespace}:${chainId}`,
+      chainId,
       request: {
         method: "personal_sign",
-        params: [hexMessage, address],
+        params: [encodeEvmMessage(message), address],
       },
     });
 
@@ -64,7 +59,7 @@ export async function cmdAuth(args) {
     console.log(
       JSON.stringify({
         status: "authenticated",
-        address,
+        address: display,
         signature,
         nonce,
         message,

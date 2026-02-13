@@ -3,6 +3,7 @@
  */
 
 import { getClient, loadSessions } from "./client.mjs";
+import { requireSession, requireAccount, parseAccount } from "./helpers.mjs";
 
 // Common ERC-20 token addresses by chain
 const TOKEN_ADDRESSES = {
@@ -30,82 +31,73 @@ export async function cmdSendTx(args) {
   }
 
   const client = await getClient();
-  const sessions = loadSessions();
-  const sessionData = sessions[args.topic];
-  if (!sessionData) {
-    console.error(JSON.stringify({ error: "Session not found" }));
-    process.exit(1);
-  }
-
+  const sessionData = requireSession(loadSessions(), args.topic);
   const chain = args.chain || "eip155:1";
 
-  if (chain.startsWith("eip155:")) {
-    const evmAccount = sessionData.accounts.find((a) => a.startsWith(chain));
-    if (!evmAccount) {
-      console.error(JSON.stringify({ error: `No account for chain ${chain}` }));
-      process.exit(1);
-    }
-
-    const [, , from] = evmAccount.split(":");
-
-    let tx;
-    if (args.token && args.token !== "ETH") {
-      // ERC-20 transfer
-      const tokenAddr = TOKEN_ADDRESSES[args.token]?.[chain];
-      if (!tokenAddr) {
-        console.error(
-          JSON.stringify({ error: `Token ${args.token} not supported on ${chain}` })
-        );
-        process.exit(1);
-      }
-
-      const decimals = TOKEN_DECIMALS[args.token] || 18;
-      const amount = BigInt(Math.round(parseFloat(args.amount) * 10 ** decimals));
-      const toAddr = args.to.replace("0x", "").padStart(64, "0");
-      const amountHex = amount.toString(16).padStart(64, "0");
-      const data = `0xa9059cbb${toAddr}${amountHex}`;
-
-      tx = { from, to: tokenAddr, data };
-    } else {
-      // Native ETH transfer
-      const weiAmount = BigInt(Math.round(parseFloat(args.amount || "0") * 1e18));
-      tx = {
-        from,
-        to: args.to,
-        value: "0x" + weiAmount.toString(16),
-      };
-    }
-
-    try {
-      const txHash = await client.request({
-        topic: args.topic,
-        chainId: chain,
-        request: {
-          method: "eth_sendTransaction",
-          params: [tx],
-        },
-      });
-      console.log(
-        JSON.stringify({
-          status: "sent",
-          txHash,
-          chain,
-          from,
-          to: args.to,
-          amount: args.amount,
-          token: args.token || "ETH",
-        })
-      );
-    } catch (err) {
-      console.log(JSON.stringify({ status: "rejected", error: err.message }));
-    }
-  } else if (chain.startsWith("solana:")) {
+  if (chain.startsWith("solana:")) {
     console.log(
       JSON.stringify({
         status: "error",
         error: "Solana send-tx not yet implemented. Use sign for message signing.",
       })
     );
+    await client.core.relayer.transportClose();
+    return;
+  }
+
+  const accountStr = requireAccount(sessionData, chain, "EVM");
+  const { address: from } = parseAccount(accountStr);
+
+  let tx;
+  if (args.token && args.token !== "ETH") {
+    // ERC-20 transfer
+    const tokenAddr = TOKEN_ADDRESSES[args.token]?.[chain];
+    if (!tokenAddr) {
+      console.error(
+        JSON.stringify({ error: `Token ${args.token} not supported on ${chain}` })
+      );
+      process.exit(1);
+    }
+
+    const decimals = TOKEN_DECIMALS[args.token] || 18;
+    const amount = BigInt(Math.round(parseFloat(args.amount) * 10 ** decimals));
+    const toAddr = args.to.replace("0x", "").padStart(64, "0");
+    const amountHex = amount.toString(16).padStart(64, "0");
+    const data = `0xa9059cbb${toAddr}${amountHex}`;
+
+    tx = { from, to: tokenAddr, data };
+  } else {
+    // Native ETH transfer
+    const weiAmount = BigInt(Math.round(parseFloat(args.amount || "0") * 1e18));
+    tx = {
+      from,
+      to: args.to,
+      value: "0x" + weiAmount.toString(16),
+    };
+  }
+
+  try {
+    const txHash = await client.request({
+      topic: args.topic,
+      chainId: chain,
+      request: {
+        method: "eth_sendTransaction",
+        params: [tx],
+      },
+    });
+    console.log(
+      JSON.stringify({
+        status: "sent",
+        txHash,
+        chain,
+        from,
+        to: args.to,
+        amount: args.amount,
+        token: args.token || "ETH",
+      })
+    );
+  } catch (err) {
+    console.log(JSON.stringify({ status: "rejected", error: err.message }));
   }
 
   await client.core.relayer.transportClose();
