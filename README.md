@@ -24,10 +24,10 @@ Agent                          User's Wallet
 
 ## Features
 
-- **WalletConnect v2** — works with any compatible wallet (Gem, MetaMask, Rainbow, Trust, etc.)
-- **Multi-chain** — EVM (Ethereum, Base, Arbitrum, Polygon, BSC) + Solana
+- **WalletConnect v2** — works with any compatible wallet (Gem, MetaMask, Trust, etc.)
+- **Multi-chain** — EVM (Ethereum, Base, Arbitrum, BSC) + Solana
 - **Consent-based auth** — signed message with nonce proves wallet ownership
-- **Token transfers** — native ETH/SOL + ERC-20 (USDC, USDT)
+- **Token transfers** — native ETH/SOL + ERC-20/SPL (USDC, USDT)
 - **Session persistence** — sessions survive across agent restarts
 - **Self-custodial** — keys never leave the user's wallet
 
@@ -46,11 +46,17 @@ node scripts/wallet.mjs pair --chains eip155:1,solana:5eykt4UsFv8P8NJdTREpY1vzqK
 # Authenticate (after pairing)
 node scripts/wallet.mjs auth --topic <session_topic>
 
-# Send a transaction
+# Send native ETH
 node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:1 --to 0xADDRESS --amount 0.01
 
-# Send ERC-20 tokens
-node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:1 --to 0xADDRESS --token USDC --amount 5.0
+# Send ERC-20 USDC on Arbitrum
+node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:42161 --to 0xADDRESS --token USDC --amount 5.0
+
+# Send native SOL
+node scripts/wallet.mjs send-tx --topic <topic> --chain solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp --to <PUBKEY> --amount 0.01
+
+# Send SPL USDC on Solana
+node scripts/wallet.mjs send-tx --topic <topic> --chain solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp --to <PUBKEY> --token USDC --amount 1.0
 
 # Sign a message
 node scripts/wallet.mjs sign --topic <topic> --message "Hello World"
@@ -65,8 +71,8 @@ node scripts/wallet.mjs sessions
 |---------|-------------|
 | `pair` | Create a new WalletConnect pairing session |
 | `auth` | Send consent sign request to verify wallet ownership |
-| `sign` | Sign an arbitrary message |
-| `send-tx` | Send a transaction (native or ERC-20 token) |
+| `sign` | Sign an arbitrary message (EVM or Solana) |
+| `send-tx` | Send a transaction (native or token, EVM or Solana) |
 | `status` | Check a session's status |
 | `sessions` | List all active sessions |
 

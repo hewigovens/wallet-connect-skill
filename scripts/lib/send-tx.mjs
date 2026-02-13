@@ -4,6 +4,7 @@
 
 import { getClient, loadSessions } from "./client.mjs";
 import { requireSession, requireAccount, parseAccount } from "./helpers.mjs";
+import { getTokenAddress, getTokenDecimals } from "./tokens.mjs";
 import {
   Connection,
   PublicKey,
@@ -24,30 +25,7 @@ const SOLANA_RPC = {
   "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "https://api.mainnet-beta.solana.com",
 };
 
-// Common ERC-20 token addresses by chain
-const TOKEN_ADDRESSES = {
-  USDC: {
-    "eip155:1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    "eip155:8453": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "eip155:42161": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  },
-  USDT: {
-    "eip155:1": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-    "eip155:56": "0x55d398326f99059fF775485246999027B3197955",
-  },
-};
-
-const TOKEN_DECIMALS = { USDC: 6, USDT: 6 };
-
-// SPL token mint addresses on Solana mainnet
-const SPL_MINTS = {
-  USDC: {
-    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-  },
-  USDT: {
-    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-  },
-};
+// Token metadata is centralized in tokens.mjs
 
 // --- Solana send ---
 
@@ -70,16 +48,16 @@ async function sendSolana(client, args, sessionData, chain) {
 
   if (args.token && args.token !== "SOL") {
     // SPL token transfer
-    const mintAddr = SPL_MINTS[args.token]?.[chain];
+    const mintAddr = getTokenAddress(args.token, chain);
     if (!mintAddr) {
       console.error(
-        JSON.stringify({ error: `SPL token ${args.token} not supported on ${chain}` })
+        JSON.stringify({ error: `Token ${args.token} not supported on ${chain}` })
       );
       process.exit(1);
     }
 
     const mintPubkey = new PublicKey(mintAddr);
-    const decimals = TOKEN_DECIMALS[args.token] || 6;
+    const decimals = getTokenDecimals(args.token);
     const amount = BigInt(Math.round(parseFloat(args.amount) * 10 ** decimals));
 
     const fromAta = getAssociatedTokenAddressSync(mintPubkey, fromPubkey);
@@ -155,7 +133,7 @@ async function sendEvm(client, args, sessionData, chain) {
 
   let tx;
   if (args.token && args.token !== "ETH") {
-    const tokenAddr = TOKEN_ADDRESSES[args.token]?.[chain];
+    const tokenAddr = getTokenAddress(args.token, chain);
     if (!tokenAddr) {
       console.error(
         JSON.stringify({ error: `Token ${args.token} not supported on ${chain}` })
@@ -163,7 +141,7 @@ async function sendEvm(client, args, sessionData, chain) {
       process.exit(1);
     }
 
-    const decimals = TOKEN_DECIMALS[args.token] || 18;
+    const decimals = getTokenDecimals(args.token);
     const amount = BigInt(Math.round(parseFloat(args.amount) * 10 ** decimals));
     const toAddr = args.to.replace("0x", "").padStart(64, "0");
     const amountHex = amount.toString(16).padStart(64, "0");

@@ -86,6 +86,34 @@ When running wallet tasks (pairing, signing, transactions), update `HEARTBEAT.md
 - Check running exec sessions related to wallet.mjs (process list)
 ```
 
+## Adding New Tokens
+
+Token metadata is centralized in `scripts/lib/tokens.mjs`. To add a new token:
+
+1. Open `scripts/lib/tokens.mjs`
+2. Add an entry to the `TOKENS` object:
+
+```js
+WETH: {
+  name: "Wrapped Ether",
+  decimals: 18,
+  addresses: {
+    "eip155:1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "eip155:42161": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+    // Solana SPL mint (if applicable)
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "<mint_pubkey>",
+  },
+},
+```
+
+3. The token is immediately available for `send-tx --token WETH`
+
+Helper functions exported from `tokens.mjs`:
+- `getTokenAddress(symbol, chainId)` — contract/mint address for a chain
+- `getTokenDecimals(symbol)` — decimal places (defaults to 18)
+- `isSplToken(symbol, chainId)` — check if it's an SPL token
+- `getTokensForChain(chainId)` — list all tokens on a chain
+
 ## Session Persistence
 
 - WC client sessions: `~/.agent-wallet/wc-store/` (persistent across runs)
