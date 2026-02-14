@@ -8,6 +8,9 @@ import {
   getChainFromAccount,
 } from "@walletconnect/utils";
 import bs58 from "bs58";
+import { normalize } from "viem/ens";
+import { createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
 
 // --- Account lookup ---
 
@@ -99,4 +102,43 @@ export function requireAccount(sessionData, chainHint, label = "matching") {
     process.exit(1);
   }
   return account;
+}
+
+// --- ENS Resolution ---
+
+/**
+ * Resolve an ENS name to an EVM address. Pass-through if not .eth.
+ */
+export async function resolveAddress(addressOrEns) {
+  if (!addressOrEns.endsWith(".eth")) return addressOrEns;
+  const client = createPublicClient({ chain: mainnet, transport: http() });
+  const resolved = await client.getEnsAddress({ name: normalize(addressOrEns) });
+  if (!resolved) throw new Error(`Could not resolve ENS name: ${addressOrEns}`);
+  return resolved;
+}
+
+// --- Request with Timeout ---
+
+/**
+ * Wrap client.request with timeout and periodic polling status on stderr.
+ */
+export async function requestWithTimeout(client, requestParams, { pollIntervalMs = 10000, timeoutMs = 300000 } = {}) {
+  const start = Date.now();
+
+  const pollTimer = setInterval(() => {
+    const elapsed = Date.now() - start;
+    console.error(JSON.stringify({ waiting: true, elapsed, timeout: timeoutMs }));
+  }, pollIntervalMs);
+
+  try {
+    const result = await Promise.race([
+      client.request(requestParams),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out after 5 minutes — user did not respond")), timeoutMs);
+      }),
+    ]);
+    return result;
+  } finally {
+    clearInterval(pollTimer);
+  }
 }

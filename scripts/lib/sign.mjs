@@ -9,6 +9,7 @@ import {
   parseAccount,
   encodeEvmMessage,
   encodeSolMessage,
+  requestWithTimeout,
 } from "./helpers.mjs";
 
 export async function cmdSign(args) {
@@ -41,7 +42,7 @@ export async function cmdSign(args) {
   let result;
 
   if (useSolana) {
-    const signature = await client.request({
+    const signature = await requestWithTimeout(client, {
       topic: args.topic,
       chainId,
       request: {
@@ -51,7 +52,7 @@ export async function cmdSign(args) {
     });
     result = { status: "signed", address, signature, chain: chainId };
   } else {
-    const signature = await client.request({
+    const signature = await requestWithTimeout(client, {
       topic: args.topic,
       chainId,
       request: {

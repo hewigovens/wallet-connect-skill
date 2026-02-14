@@ -10,6 +10,7 @@ import {
   parseAccount,
   redactAddress,
   encodeEvmMessage,
+  requestWithTimeout,
 } from "./helpers.mjs";
 
 export async function cmdAuth(args) {
@@ -38,7 +39,7 @@ export async function cmdAuth(args) {
   ].join("\n");
 
   try {
-    const signature = await client.request({
+    const signature = await requestWithTimeout(client, {
       topic: args.topic,
       chainId,
       request: {

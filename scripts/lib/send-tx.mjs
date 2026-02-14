@@ -3,7 +3,7 @@
  */
 
 import { getClient, loadSessions } from "./client.mjs";
-import { requireSession, requireAccount, parseAccount } from "./helpers.mjs";
+import { requireSession, requireAccount, parseAccount, resolveAddress, requestWithTimeout } from "./helpers.mjs";
 import { getTokenAddress, getTokenDecimals } from "./tokens.mjs";
 import {
   Connection,
@@ -12,6 +12,7 @@ import {
   TransactionMessage,
   VersionedTransaction,
   LAMPORTS_PER_SOL,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
@@ -86,6 +87,16 @@ async function sendSolana(client, args, sessionData, chain) {
     instructions.push(SystemProgram.transfer({ fromPubkey, toPubkey, lamports }));
   }
 
+  // Add priority fee (median of recent fees)
+  try {
+    const recentFees = await connection.getRecentPrioritizationFees();
+    const feeValues = recentFees.map((f) => f.prioritizationFee).filter((f) => f > 0).sort((a, b) => a - b);
+    if (feeValues.length > 0) {
+      const medianFee = feeValues[Math.floor(feeValues.length / 2)];
+      instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: medianFee }));
+    }
+  } catch (_) { /* skip priority fee on error */ }
+
   // Fetch recent blockhash
   const { blockhash } = await connection.getLatestBlockhash("confirmed");
 
@@ -100,7 +111,7 @@ async function sendSolana(client, args, sessionData, chain) {
   const serialized = Buffer.from(vtx.serialize()).toString("base64");
 
   // Request wallet to sign AND send (wallet broadcasts)
-  const result = await client.request({
+  const result = await requestWithTimeout(client, {
     topic: args.topic,
     chainId: chain,
     request: {
@@ -131,6 +142,12 @@ async function sendEvm(client, args, sessionData, chain) {
   const accountStr = requireAccount(sessionData, chain, "EVM");
   const { address: from } = parseAccount(accountStr);
 
+  // Resolve ENS name if needed
+  const resolvedTo = await resolveAddress(args.to);
+  if (resolvedTo !== args.to) {
+    console.error(JSON.stringify({ ens: args.to, resolved: resolvedTo }));
+  }
+
   let tx;
   if (args.token && args.token !== "ETH") {
     const tokenAddr = getTokenAddress(args.token, chain);
@@ -143,7 +160,7 @@ async function sendEvm(client, args, sessionData, chain) {
 
     const decimals = getTokenDecimals(args.token);
     const amount = BigInt(Math.round(parseFloat(args.amount) * 10 ** decimals));
-    const toAddr = args.to.replace("0x", "").padStart(64, "0");
+    const toAddr = resolvedTo.replace("0x", "").padStart(64, "0");
     const amountHex = amount.toString(16).padStart(64, "0");
     const data = `0xa9059cbb${toAddr}${amountHex}`;
 
@@ -152,12 +169,12 @@ async function sendEvm(client, args, sessionData, chain) {
     const weiAmount = BigInt(Math.round(parseFloat(args.amount || "0") * 1e18));
     tx = {
       from,
-      to: args.to,
+      to: resolvedTo,
       value: "0x" + weiAmount.toString(16),
     };
   }
 
-  const txHash = await client.request({
+  const txHash = await requestWithTimeout(client, {
     topic: args.topic,
     chainId: chain,
     request: {
@@ -172,7 +189,8 @@ async function sendEvm(client, args, sessionData, chain) {
       txHash,
       chain,
       from,
-      to: args.to,
+      to: resolvedTo,
+      ...(resolvedTo !== args.to ? { ens: args.to } : {}),
       amount: args.amount,
       token: args.token || "ETH",
     })
