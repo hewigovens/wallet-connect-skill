@@ -7,10 +7,35 @@ description: Connect AI agents to crypto wallets via WalletConnect. Use when the
 
 Connect to user's crypto wallet via WalletConnect v2. Supports EVM chains and Solana.
 
+## Project Structure
+
+```
+wallet-connect-skill/
+├── SKILL.md              # This file — agent instructions
+├── README.md             # Project overview
+├── LICENSE
+├── package.json          # Root deps (runtime + dev)
+├── eslint.config.js      # ESLint 9 flat config
+├── .env.example          # Required env vars template
+├── .github/workflows/
+│   └── ci.yml            # CI: lint + check on Node 20/22
+├── scripts/
+│   ├── wallet.mjs        # CLI entry point
+│   └── lib/
+│       ├── client.mjs    # WC SignClient singleton + session persistence
+│       ├── helpers.mjs   # Shared utils (ENS, timeout, encoding, account lookup)
+│       ├── pair.mjs      # Pairing command
+│       ├── auth.mjs      # Authentication (consent sign)
+│       ├── sign.mjs      # Message signing (EVM + Solana)
+│       ├── send-tx.mjs   # Transaction sending (native + token, EVM + Solana)
+│       └── tokens.mjs    # Token metadata (addresses, decimals)
+└── references/
+    └── chains.md         # Supported chain IDs and tokens
+```
+
 ## Install
 
 ```bash
-cd scripts
 npm install
 ```
 
@@ -40,6 +65,10 @@ Output: `{ address, signature, nonce }` after user approves in wallet.
 
 ### Send Transaction
 ```bash
+# EVM: send ETH (supports ENS names)
+node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:1 \
+  --to vitalik.eth --amount 0.01
+
 # EVM: send USDC on Arbitrum
 node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:42161 \
   --to 0xRECIPIENT --token USDC --amount 5.0
@@ -61,6 +90,17 @@ node scripts/wallet.mjs sign --topic <topic> --message "Hello World"
 # Solana (solana_signMessage, bs58-encoded)
 node scripts/wallet.mjs sign --topic <topic> --message "Hello World" --chain solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp
 ```
+
+## Features
+
+### ENS Resolution
+EVM `--to` addresses accept ENS names (e.g. `vitalik.eth`). Resolved via viem + Ethereum mainnet RPC. Resolution is logged to stderr.
+
+### Solana Priority Fees
+Solana transactions automatically include priority fees. Fetches recent prioritization fees from RPC and uses the median (p50) value via `ComputeBudgetProgram.setComputeUnitPrice`. Skips gracefully if RPC fails.
+
+### Request Timeout
+All wallet requests (auth, sign, send-tx) poll every 10 seconds with status updates to stderr. Timeout after 5 minutes if the user doesn't respond in their wallet.
 
 ## Onboarding Workflow
 
@@ -91,7 +131,7 @@ When user asks to pair their wallet:
 
 ## Heartbeat Integration
 
-When running wallet tasks (pairing, signing, transactions), update `HEARTBEAT.md` to monitor for pending WalletConnect messages and session events. This ensures the agent checks for wallet responses during heartbeat polls.
+When running wallet tasks (pairing, signing, transactions), update `HEARTBEAT.md` to monitor for pending WalletConnect messages and session events.
 
 ```markdown
 ## WalletConnect Session Monitor
@@ -114,7 +154,6 @@ WETH: {
   addresses: {
     "eip155:1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "eip155:42161": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-    // Solana SPL mint (if applicable)
     "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "<mint_pubkey>",
   },
 },
@@ -134,9 +173,21 @@ Helper functions exported from `tokens.mjs`:
 - App session data: `~/.agent-wallet/sessions.json` (accounts, auth status)
 - Sessions are valid until user disconnects from their wallet
 
+## Development
+
+```bash
+npm run lint          # ESLint check
+npm run lint:fix      # Auto-fix lint issues
+npm run check         # Verify CLI loads
+```
+
+CI runs on every push/PR to main (Node 20 + 22).
+
 ## Environment
 
 - `WALLETCONNECT_PROJECT_ID` — required
+- `WC_METADATA_NAME` — optional (default: "ShioriX")
+- `WC_METADATA_URL` — optional (default: "https://shiorix.hewig.dev")
 
 ## Chain Reference
 
