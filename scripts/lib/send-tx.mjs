@@ -18,7 +18,6 @@ import {
   getAssociatedTokenAddressSync,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
-  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 
 // Solana RPC endpoints
@@ -95,7 +94,7 @@ async function sendSolana(client, args, sessionData, chain) {
       const medianFee = feeValues[Math.floor(feeValues.length / 2)];
       instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: medianFee }));
     }
-  } catch (_) { /* skip priority fee on error */ }
+  } catch { /* skip priority fee on error */ }
 
   // Fetch recent blockhash
   const { blockhash } = await connection.getLatestBlockhash("confirmed");

@@ -1,8 +1,17 @@
 {
-  "name": "agent-wallet",
+  "name": "wallet-connect-skill",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "lint": "eslint scripts/",
+    "lint:fix": "eslint scripts/ --fix",
+    "check": "node scripts/wallet.mjs --help"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0"
+  },
   "dependencies": {
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",

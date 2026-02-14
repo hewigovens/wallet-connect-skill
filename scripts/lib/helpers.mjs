@@ -4,8 +4,6 @@
 
 import {
   parseAccountId,
-  getAddressFromAccount,
-  getChainFromAccount,
 } from "@walletconnect/utils";
 import bs58 from "bs58";
 import { normalize } from "viem/ens";
