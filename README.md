@@ -84,6 +84,19 @@ Place this repo in your skills directory. The agent will use it when users ask t
 
 See [SKILL.md](SKILL.md) for the skill specification and agent workflow.
 
+## Roadmap
+
+### More Tokens & Chains
+- Additional ERC-20/SPL tokens (WETH, DAI, WBTC, etc.)
+- More EVM chains (Base, Optimism, Polygon, BSC)
+- Solana DeFi tokens
+
+### Protocol Improvements
+- Session health monitoring and auto-reconnect
+- Batch transaction support
+- EIP-712 typed data signing
+- Transaction simulation before sending (Tenderly, Blowfish)
+
 ## Requirements
 
 - Node.js 18+
