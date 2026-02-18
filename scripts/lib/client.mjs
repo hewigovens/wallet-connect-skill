@@ -45,6 +45,33 @@ export function saveSession(topic, data) {
   saveSessions(sessions);
 }
 
+// --- Session lookup by address ---
+
+/**
+ * Find the most recent session containing the given address (case-insensitive).
+ * Matches against the address portion of CAIP-10 account strings.
+ * Returns { topic, session } or null.
+ */
+export function findSessionByAddress(sessions, address) {
+  const needle = address.toLowerCase();
+  const matches = [];
+  for (const [topic, session] of Object.entries(sessions)) {
+    const hasMatch = (session.accounts || []).some((acct) => {
+      // CAIP-10: namespace:reference:address — compare the address part
+      const parts = acct.split(":");
+      const addr = parts.slice(2).join(":"); // address may contain colons (unlikely but safe)
+      return addr.toLowerCase() === needle;
+    });
+    if (hasMatch) {
+      matches.push({ topic, session });
+    }
+  }
+  if (matches.length === 0) return null;
+  // Return the most recently updated session
+  matches.sort((a, b) => (b.session.updatedAt || b.session.createdAt || "").localeCompare(a.session.updatedAt || a.session.createdAt || ""));
+  return matches[0];
+}
+
 // --- WalletConnect client ---
 
 export async function getClient() {
