@@ -3,14 +3,17 @@
  * wallet-connect-skill CLI entry point.
  *
  * Commands:
- *   pair           Create a new pairing session
- *   status         Check session status
- *   auth           Send consent sign request
- *   sign           Sign an arbitrary message
- *   send-tx        Send a transaction
- *   sessions       List active sessions (raw JSON)
- *   list-sessions  List sessions with accounts, peer, and date
- *   whoami         Show account info for a session
+ *   pair             Create a new pairing session
+ *   status           Check session status
+ *   auth             Send consent sign request
+ *   sign             Sign an arbitrary message
+ *   send-tx          Send a transaction
+ *   balance          Check wallet balances via public RPC (no wallet needed)
+ *   tokens           List supported tokens for a given chain
+ *   sessions         List active sessions (raw JSON)
+ *   list-sessions    List sessions with accounts, peer, and date
+ *   whoami           Show account info for a session
+ *   delete-session   Remove a saved session
  */
 
 import { parseArgs } from "util";
@@ -18,7 +21,9 @@ import { cmdPair } from "./lib/pair.mjs";
 import { cmdAuth } from "./lib/auth.mjs";
 import { cmdSign } from "./lib/sign.mjs";
 import { cmdSendTx } from "./lib/send-tx.mjs";
-import { loadSessions, findSessionByAddress } from "./lib/client.mjs";
+import { cmdBalance } from "./lib/balance.mjs";
+import { loadSessions, saveSessions, findSessionByAddress } from "./lib/client.mjs";
+import { getTokensForChain } from "./lib/tokens.mjs";
 
 // --- Resolve --address to --topic ---
 
@@ -119,6 +124,45 @@ async function cmdWhoami(args) {
   }, null, 2));
 }
 
+// --- delete-session ---
+
+async function cmdDeleteSession(args) {
+  args = resolveAddress(args);
+  if (!args.topic) {
+    console.error(JSON.stringify({ error: "--topic or --address required" }));
+    process.exit(1);
+  }
+  const sessions = loadSessions();
+  if (!sessions[args.topic]) {
+    console.log(JSON.stringify({ status: "not_found", topic: args.topic }));
+    return;
+  }
+  const { peerName, accounts } = sessions[args.topic];
+  delete sessions[args.topic];
+  saveSessions(sessions);
+  console.log(JSON.stringify({ status: "deleted", topic: args.topic, peerName, accounts }));
+}
+
+// --- tokens ---
+
+async function cmdTokens(args) {
+  const chain = args.chain || "eip155:1";
+  const tokens = getTokensForChain(chain);
+  if (tokens.length === 0) {
+    console.log(JSON.stringify({ chain, tokens: [], message: "No tokens configured for this chain" }));
+  } else {
+    console.log(JSON.stringify({
+      chain,
+      tokens: tokens.map((t) => ({
+        symbol: t.symbol,
+        name: t.name,
+        decimals: t.decimals,
+        address: t.address,
+      })),
+    }, null, 2));
+  }
+}
+
 // --- CLI ---
 
 const { positionals, values } = parseArgs({
@@ -142,14 +186,17 @@ if (!command || values.help) {
   console.log(`Usage: wallet.mjs <command> [options]
 
 Commands:
-  pair           Create pairing session (--chains eip155:1,solana:...)
-  status         Check session (--topic <topic> | --address <addr>)
-  auth           Send consent sign (--topic <topic> | --address <addr>)
-  sign           Sign message (--topic <topic> | --address <addr>) --message <msg>
-  send-tx        Send transaction (--topic <topic> | --address <addr>) --chain <chain> --to <addr> --amount <n> [--token USDC]
-  sessions       List all sessions (raw JSON)
-  list-sessions  List sessions (human-readable)
-  whoami         Show account info (--topic <topic> | --address <addr>)
+  pair             Create pairing session (--chains eip155:1,solana:...)
+  status           Check session (--topic <topic> | --address <addr>)
+  auth             Send consent sign (--topic <topic> | --address <addr>)
+  sign             Sign message (--topic <topic> | --address <addr>) --message <msg>
+  send-tx          Send transaction (--topic <topic> | --address <addr>) --chain <chain> --to <addr> --amount <n> [--token USDC]
+  balance          Check wallet balances (--topic <topic> | --address <addr> [--chain <chain>])
+  tokens           List supported tokens for a chain (--chain <chain>)
+  sessions         List all sessions (raw JSON)
+  list-sessions    List sessions (human-readable)
+  whoami           Show account info (--topic <topic> | --address <addr>)
+  delete-session   Remove a saved session (--topic <topic> | --address <addr>)
 
 Options:
   --address <0x...>  Select session by wallet address (case-insensitive)`);
@@ -162,9 +209,12 @@ const commands = {
   auth: (args) => { args = resolveAddress(args); return cmdAuth(args); },
   sign: (args) => { args = resolveAddress(args); return cmdSign(args); },
   "send-tx": (args) => { args = resolveAddress(args); return cmdSendTx(args); },
+  balance: (args) => { if (args.address || args.topic) args = resolveAddress(args); return cmdBalance(args); },
+  tokens: cmdTokens,
   sessions: cmdSessions,
   "list-sessions": cmdListSessions,
   whoami: cmdWhoami,
+  "delete-session": cmdDeleteSession,
 };
 
 if (!commands[command]) {

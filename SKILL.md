@@ -63,6 +63,45 @@ node scripts/wallet.mjs auth --topic <topic>
 ```
 Output: `{ address, signature, nonce }` after user approves in wallet.
 
+### Check Balances (no wallet interaction)
+```bash
+# All balances for all accounts in a session
+node scripts/wallet.mjs balance --topic <topic>
+
+# Single chain
+node scripts/wallet.mjs balance --topic <topic> --chain eip155:42161
+
+# Direct address (no session needed)
+node scripts/wallet.mjs balance --address 0xC36edF48e21cf395B206352A1819DE658fD7f988 --chain eip155:1
+
+# All sessions, all chains
+node scripts/wallet.mjs balance
+```
+Output: `[{ chain, address, balances: [{ token, balance, raw }] }]`
+
+Queries public RPC endpoints — no wallet approval needed.
+
+### List Supported Tokens
+```bash
+# Default: Ethereum mainnet
+node scripts/wallet.mjs tokens
+
+# Other chains
+node scripts/wallet.mjs tokens --chain eip155:42161    # Arbitrum
+node scripts/wallet.mjs tokens --chain eip155:10       # Optimism
+node scripts/wallet.mjs tokens --chain eip155:137      # Polygon
+node scripts/wallet.mjs tokens --chain solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp
+```
+Output: `{ chain, tokens: [{ symbol, name, decimals, address }] }`
+
+### Delete Session
+```bash
+node scripts/wallet.mjs delete-session --topic <topic>
+node scripts/wallet.mjs delete-session --address 0xADDRESS
+```
+Removes the session from `~/.agent-wallet/sessions.json`.
+Output: `{ status: "deleted", topic, peerName, accounts }`
+
 ### Send Transaction
 ```bash
 # EVM: send ETH (supports ENS names)
@@ -72,6 +111,14 @@ node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:1 \
 # EVM: send USDC on Arbitrum
 node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:42161 \
   --to 0xRECIPIENT --token USDC --amount 5.0
+
+# EVM: send WETH on Optimism
+node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:10 \
+  --to 0xRECIPIENT --token WETH --amount 0.01
+
+# EVM: send DAI on Polygon
+node scripts/wallet.mjs send-tx --topic <topic> --chain eip155:137 \
+  --to 0xRECIPIENT --token DAI --amount 100.0
 
 # Solana: send native SOL
 node scripts/wallet.mjs send-tx --topic <topic> --chain solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp \
@@ -140,6 +187,18 @@ When running wallet tasks (pairing, signing, transactions), update `HEARTBEAT.md
 - Check running exec sessions related to wallet.mjs (process list)
 ```
 
+## Supported Tokens
+
+Tokens supported out of the box:
+
+| Token | EVM Chains | Solana |
+|-------|-----------|--------|
+| USDC | ETH, Base, Arbitrum, Optimism, Polygon | ✅ Mainnet |
+| USDT | ETH, Optimism, Polygon, BSC | ✅ Mainnet |
+| WETH | ETH, Arbitrum, Base, Optimism, Polygon | — |
+| DAI | ETH, Arbitrum, Base, Optimism, Polygon | — |
+| WBTC | ETH, Arbitrum, Optimism, Polygon | — |
+
 ## Adding New Tokens
 
 Token metadata is centralized in `scripts/lib/tokens.mjs`. To add a new token:
@@ -148,18 +207,16 @@ Token metadata is centralized in `scripts/lib/tokens.mjs`. To add a new token:
 2. Add an entry to the `TOKENS` object:
 
 ```js
-WETH: {
-  name: "Wrapped Ether",
+OP: {
+  name: "Optimism",
   decimals: 18,
   addresses: {
-    "eip155:1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    "eip155:42161": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "<mint_pubkey>",
+    "eip155:10": "0x4200000000000000000000000000000000000042",
   },
 },
 ```
 
-3. The token is immediately available for `send-tx --token WETH`
+3. The token is immediately available for `send-tx --token OP` and shown in `balance` and `tokens` commands
 
 Helper functions exported from `tokens.mjs`:
 - `getTokenAddress(symbol, chainId)` — contract/mint address for a chain
