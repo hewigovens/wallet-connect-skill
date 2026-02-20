@@ -31,9 +31,10 @@ wallet-connect-skill/
 │       ├── helpers.mjs   # Shared utils (ENS, timeout, encoding, account lookup)
 │       ├── pair.mjs      # Pairing command
 │       ├── auth.mjs      # Authentication (consent sign)
-│       ├── sign.mjs      # Message signing (EVM + Solana)
-│       ├── send-tx.mjs   # Transaction sending (native + token, EVM + Solana)
-│       └── tokens.mjs    # Token metadata (addresses, decimals)
+│       ├── health.mjs           # Session health detection (wc_ping)
+│       ├── sign.mjs             # Message signing (EVM + Solana)
+│       ├── send-tx.mjs          # Transaction sending (native + token, EVM + Solana)
+│       └── tokens.mjs           # Token metadata (addresses, decimals)
 └── references/
     └── chains.md         # Supported chain IDs and tokens
 ```
@@ -106,6 +107,35 @@ node scripts/wallet.mjs delete-session --address 0xADDRESS
 ```
 Removes the session from `~/.agent-wallet/sessions.json`.
 Output: `{ status: "deleted", topic, peerName, accounts }`
+
+### Check Session Health
+```bash
+# Ping a specific session
+node scripts/wallet.mjs health --topic <topic>
+node scripts/wallet.mjs health --address 0xADDR
+
+# Ping all sessions
+node scripts/wallet.mjs health --all
+
+# Ping all and remove dead sessions automatically
+node scripts/wallet.mjs health --all --clean
+```
+
+Output:
+```json
+{
+  "checked": 2,
+  "alive": 1,
+  "dead": 1,
+  "cleaned": 1,
+  "sessions": [
+    { "topic": "abc123…", "peerName": "Gem Wallet", "accounts": ["0xC36ed…"], "alive": true },
+    { "topic": "def456…", "peerName": "MetaMask", "accounts": ["0xABC…"], "alive": false, "error": "ping timeout" }
+  ]
+}
+```
+
+Uses `wc_sessionPing` (15s timeout per session). A dead session means the wallet is offline or the session was disconnected — safe to `--clean`.
 
 ### Send Transaction
 ```bash

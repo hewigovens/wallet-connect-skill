@@ -92,7 +92,7 @@ See [SKILL.md](SKILL.md) for the skill specification and agent workflow.
 - Solana DeFi tokens
 
 ### Protocol Improvements
-- Session health monitoring and auto-reconnect
+- ✅ Session health monitoring (`health` command with `wc_sessionPing` + `--clean`)
 - Batch transaction support
 - EIP-712 typed data signing
 - Transaction simulation before sending (Tenderly, Blowfish)
