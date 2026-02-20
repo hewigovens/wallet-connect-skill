@@ -1,6 +1,11 @@
 ---
 name: wallet-connect
 description: Connect AI agents to crypto wallets via WalletConnect. Use when the agent needs to pair with a wallet, sign messages, or send transactions (EVM and Solana). Triggers on wallet pairing, crypto payments, transaction signing, or wallet connection requests.
+license: MIT
+metadata:
+  author: shiorixbot
+  version: "0.2"
+  repo: https://github.com/shiorixbot/wallet-connect-skill
 ---
 
 # Wallet Connect Skill
@@ -15,7 +20,6 @@ wallet-connect-skill/
 ├── README.md             # Project overview
 ├── LICENSE
 ├── package.json          # Root deps (runtime + dev)
-├── eslint.config.js      # ESLint 9 flat config
 ├── .env.example          # Required env vars template
 ├── .github/workflows/
 │   └── ci.yml            # CI: lint + check on Node 20/22
@@ -233,8 +237,10 @@ Helper functions exported from `tokens.mjs`:
 ## Development
 
 ```bash
-npm run lint          # ESLint check
-npm run lint:fix      # Auto-fix lint issues
+npm run lint          # oxlint check
+npm run lint:fix      # oxlint auto-fix
+npm run format        # oxfmt format
+npm run format:check  # oxfmt check (CI)
 npm run check         # Verify CLI loads
 ```
 
