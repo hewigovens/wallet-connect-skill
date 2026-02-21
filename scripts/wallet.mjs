@@ -14,6 +14,7 @@
  *   list-sessions    List sessions with accounts, peer, and date
  *   whoami           Show account info for a session
  *   delete-session   Remove a saved session
+ *   health           Ping session(s) to check liveness (--all, --clean)
  */
 
 import { parseArgs } from "util";
@@ -22,6 +23,7 @@ import { cmdAuth } from "./lib/auth.mjs";
 import { cmdSign } from "./lib/sign.mjs";
 import { cmdSendTx } from "./lib/send-tx.mjs";
 import { cmdBalance } from "./lib/balance.mjs";
+import { cmdHealth } from "./lib/health.mjs";
 import { loadSessions, saveSessions, findSessionByAddress } from "./lib/client.mjs";
 import { getTokensForChain } from "./lib/tokens.mjs";
 
@@ -200,6 +202,9 @@ const { positionals, values } = parseArgs({
     to: { type: "string" },
     amount: { type: "string" },
     token: { type: "string" },
+    data: { type: "string" },
+    all: { type: "boolean" },
+    clean: { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
 });
@@ -221,9 +226,12 @@ Commands:
   list-sessions    List sessions (human-readable)
   whoami           Show account info (--topic <topic> | --address <addr>)
   delete-session   Remove a saved session (--topic <topic> | --address <addr>)
+  health           Ping session to check liveness (--topic | --address | --all) [--clean]
 
 Options:
-  --address <0x...>  Select session by wallet address (case-insensitive)`);
+  --address <0x...>  Select session by wallet address (case-insensitive)
+  --all              (health) Ping all sessions
+  --clean            (health) Remove dead sessions from storage`);
   process.exit(0);
 }
 
@@ -251,6 +259,7 @@ const commands = {
   "list-sessions": cmdListSessions,
   whoami: cmdWhoami,
   "delete-session": cmdDeleteSession,
+  health: cmdHealth,
 };
 
 if (!commands[command]) {
