@@ -4,7 +4,16 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { redactAddress, encodeEvmMessage, encodeSolMessage, findAccount } from "../helpers.js";
+import {
+  redactAddress,
+  encodeEvmMessage,
+  encodeSolMessage,
+  findAccount,
+  parseAccount,
+  requireSession,
+  requireAccount,
+} from "../helpers.js";
+import type { Sessions } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // redactAddress
@@ -128,5 +137,98 @@ describe("findAccount", () => {
     // eip155:10 (Optimism) not in list, but eip155 namespace is
     const result = findAccount(accounts, "eip155:10");
     assert.ok(result?.startsWith("eip155:"), `expected eip155 fallback, got ${result}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseAccount
+// ---------------------------------------------------------------------------
+
+describe("parseAccount", () => {
+  it("parses a standard EVM account string", () => {
+    const result = parseAccount("eip155:1:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    assert.equal(result.namespace, "eip155");
+    assert.equal(result.reference, "1");
+    assert.equal(result.address, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    assert.equal(result.chainId, "eip155:1");
+  });
+
+  it("parses a Polygon account string", () => {
+    const result = parseAccount("eip155:137:0xPolygonAddr");
+    assert.equal(result.chainId, "eip155:137");
+    assert.equal(result.address, "0xPolygonAddr");
+  });
+
+  it("parses a Solana account string", () => {
+    const result = parseAccount(
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    );
+    assert.equal(result.namespace, "solana");
+    assert.equal(result.chainId, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+    assert.equal(result.address, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+  });
+
+  it("exposes address at top level", () => {
+    const result = parseAccount("eip155:1:0xDeadBeef");
+    assert.equal(typeof result.address, "string");
+    assert.ok(result.address.length > 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireSession (happy path — error path calls process.exit, not tested)
+// ---------------------------------------------------------------------------
+
+describe("requireSession", () => {
+  const mockSessions: Sessions = {
+    "abc123": {
+      accounts: ["eip155:1:0xAlice"],
+      peerName: "TestDApp",
+      createdAt: "2026-01-01T00:00:00Z",
+    },
+    "def456": {
+      accounts: ["eip155:137:0xBob"],
+      peerName: "AnotherDApp",
+      createdAt: "2026-01-02T00:00:00Z",
+    },
+  };
+
+  it("returns session data for a known topic", () => {
+    const session = requireSession(mockSessions, "abc123");
+    assert.equal(session.peerName, "TestDApp");
+    assert.deepEqual(session.accounts, ["eip155:1:0xAlice"]);
+  });
+
+  it("returns the correct session for a second topic", () => {
+    const session = requireSession(mockSessions, "def456");
+    assert.equal(session.peerName, "AnotherDApp");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireAccount (happy path)
+// ---------------------------------------------------------------------------
+
+describe("requireAccount", () => {
+  const mockSession: Sessions[string] = {
+    accounts: ["eip155:1:0xAlice", "eip155:137:0xBob"],
+    peerName: "TestDApp",
+    createdAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("returns matching account string for exact chain", () => {
+    const result = requireAccount(mockSession, "eip155:1");
+    assert.equal(result, "eip155:1:0xAlice");
+  });
+
+  it("returns Polygon account when chain is eip155:137", () => {
+    const result = requireAccount(mockSession, "eip155:137");
+    assert.equal(result, "eip155:137:0xBob");
+  });
+
+  it("returns account string (namespace:chain:address format)", () => {
+    const result = requireAccount(mockSession, "eip155:1");
+    assert.ok(result.startsWith("eip155:"), "should be a CAIP-10 string");
+    assert.ok(result.split(":").length >= 3, "should have namespace:chainRef:address");
   });
 });
